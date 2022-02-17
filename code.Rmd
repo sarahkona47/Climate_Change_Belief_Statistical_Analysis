@@ -1,0 +1,206 @@
+---
+title: "Mini-Project"
+author: Sarah Choi 
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+
+
+\
+\
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(forcats)
+```
+
+
+## Part 1: Introduction
+  
+With rising global temperatures, the existence of climate change has been a controversial topic. The natural environment is deteriorating; therefore, it is important to understand the population's awareness of climate change. A study called "Pulse of the Nations", conducted by Card's Against Humanity, examines whether a person believes in climate change along with many other factors. 
+
+In this observational study, we want to examine the relationship between whether or not someone believes in climate change depending on their political views and socioeconomic status. How do political views, income, and education level affect someone's views on climate change?
+
+  1. What are the relationship between belief in climate change and political views (party and trump_binary)? 
+  2. What are the relationship between belief in climate change and economic status (education and income)?
+
+To conduct this research, we will be using the survey data from the "Pulse of the Nations." This study has a sample size of 785 people and measures 17 variables; these factors can be found in the data set below. The DK/REF responses were omitted from the raw survey data to simplify the data set; we will be using the clean survey data for this study. We will be using trump_binary (rather than trump_approval) to conduct logistical regression and model probability relationships; the "Neither approve nor disapprove" category was defined as "Disapprove" because only the people that clearly approve Trump was put into the "Approve" category. 
+
+According to [The U.S. Census Bureau](“https://www.census.gov/library/publications/2020/demo/p60-270.html”), the median household income was $68,703 in 2019. For the purpose of the study, an income above $68,703 will be considered high income. The standard of advanced education would be post-secondary education (college and above). These standards will be used for understanding the relationship between an individual's belief in climate change and socioeconomic status. It is important to note that the standards of high income and advanced education are unique to this study and its analysis; this may be different in other studies. This is an observational study. 
+
+
+```{r}
+raw_survey_data <- read.csv("https://www.macalester.edu/~ajohns24/data/pulse_of_the_nation.csv")
+
+names(raw_survey_data) <- c("income", "gender", "age", "party", "trump_approval", "education", "marital", "robots", "climate_change", "transformers", "science_is_honest", "vaccines_are_safe", "books", "ghosts", "fed_sci_budget", "earth_sun", "wise_unwise")
+
+# Convert climate_change to a binary variable
+raw_survey_data <- raw_survey_data %>% 
+  mutate(climate_change_binary = (climate_change == "Real and Caused by People"))
+
+# Omit DK/REF data points
+clean_survey <- raw_survey_data %>%
+  filter(education != "DK/REF") %>%
+  filter(party != "DK/REF") %>%
+  filter(trump_approval != "DK/REF") %>%
+  mutate(party = fct_drop(party)) %>%
+  mutate(education = fct_drop(education)) %>%
+  mutate(trump_approval = fct_drop(trump_approval)) 
+
+# Convert trump_approval to a binary variable
+clean_survey <- clean_survey %>%
+  mutate(trump_binary = case_when(
+  trump_approval == "Strongly Approve" ~ "Approve",
+  trump_approval == "Somewhat Approve" ~ "Approve",
+  trump_approval == "Strongly disapprove" ~ "Disapprove",
+  trump_approval == "Somewhat disapprove" ~ "Disapprove",
+  trump_approval == "Neither approve nor disapprove" ~ "Disapprove",
+  ))
+
+```
+
+
+\
+\
+
+
+## Part 2: Analysis
+
+### Part 1 
+The goal of this analysis is to understand the relationship between someone's belief in climate change depending on the their political views and socio-economic status. 
+
+First, we will examine the relationship between belief in climate change and political views (using trump approval and political party). 
+```{r}
+clean_survey %>%  
+  group_by(party, climate_change_binary) %>% 
+  tally()
+```
+In both Democratic and Independent parties, the majority believes in climate change. However, the majority of the Republican party does not believe in climate change.
+
+The visualization below shows the percent of climate change belief with trump approval and political party as predictors.
+```{r, fig.width=10, fig.height=6}
+ggplot(clean_survey, aes(x = party,  fill = climate_change_binary))+
+  geom_bar(position = "fill")+
+  scale_y_continuous(labels = seq(0, 100, by = 25)) +
+  scale_fill_manual("", values = c('#66c2a5','#fc8d62'))+
+  labs(y = "Climate Change Belief (%)", x= 'Political Party') + 
+  facet_wrap(~ trump_binary) +
+  theme_linedraw() +
+  theme(legend.position="right")
+```
+
+For both categories that approve and disapprove Trump, Democrats had the highest climate change approval percentage and the Republicans lowest. When controlling for Trump approval, Democrats show to have higher belief in climate change and Republicans tend to have a lower belief in climate change. Although, the individuals who approve Trump are less likely to believe in climate change in general, regardless of their political party. 
+
+The following model summary provides more insight into which political views affect climate change belief.
+```{r}
+climate_change_model_1 <- glm(climate_change_binary ~ trump_binary + party, clean_survey, family = "binomial")
+
+summary(climate_change_model_1)$coefficients
+```
+
+```{r}
+# Probability that a Democrat who disapproves Trump to believe in climate change
+exp(0.2733862 + 1.5476508*1)/(1+(exp(0.2733862 + 1.5476508*1)))
+```
+A Democrat who disapproves Trump has an 86% chance to believe in climate change.
+
+```{r}
+# Probability that a Republican who approves Trump to believe in climate change
+exp(0.2733862 -1.1804229*1)/(1+(exp(0.2733862 -1.1804229*1)))
+```
+A Republican who approves Trump is 29% chance to believe in climate change. 
+
+### Part 2 
+Secondly, we will examine the relationship between belief in climate change and socioeconomic status. 
+The visualization below looks at an individual's belief in climate change and their incomes for each education level. 
+```{r}
+ggplot(clean_survey, aes(x = climate_change_binary, y = income, color = education)) +
+  geom_boxplot() +
+  labs(y = "Income", x = "Belief in Climate Change") +
+  lims(y=c(0, 260000))
+```
+
+It is important to note that there are outliers (people who make more than $260,000) that are not shown on the plot. The visualization shows that individuals with at least some college education seem to have a median income above the high income standard ($68,703), regardless of their belief in climate change. Although income appears to be more dependent on the individual's education level, there is a slight increase in income if they do believe in climate change. 
+
+The following model summary examines the income estimates depending on their belief in climate change and education level. 
+```{r}
+climate_change_model_2 <- lm(income ~ climate_change_binary + education, clean_survey)
+
+summary(climate_change_model_2)$coefficients
+```
+
+When controlling for education, an individual who believes in climate change makes roughly 18615 dollars more than those who DO NOT believe in climate change. There is an expected error (+/-) around 7625 dollars in this estimate. Depending on their education level, their incomes fluctuate; the income only increases with a Graduate degree and decreases with anything less than a college degree. On average, people that believe in climate change tend to have higher incomes.
+
+We cannot use our sample data to make inferences about the population without an understanding of the potential error in our sample estimates. Therefore, we can observe the potential standard error as well as the significance of these findings below. 
+```{r}
+confint(climate_change_model_2, level = 0.95)
+```
+
+When holding education constant, we are 95% confident that individuals who do believe in climate change will make roughly $3619 to $33610 more than those who do NOT believe in climate change. 
+As the CI is above 1, we can say that there is significant evidence of a positive association between climate change belief and income.
+
+We can understand the significance of the findings through a hypothesis test, by observing the test statistic and p-value. The climate change TRUE income estimate falls 2.4 standard deviations from 0. The small p-value indicates that our data is not compatible with the null hypothesis. We can conclude that this estimate as well as the other estimates in the model summary are statistically significant at the 0.05 level. 
+This finding is also meaningfully/practically significant. These income estimates hold large monetary values and an income change of thousands of dollars can be a significant impact.  
+
+In the previous visualization and model summary, we examined the relationship between income and climate change belief while controlling for education. Through the following model, we want to examine how education level affects an individual's belief in climate change when controlling for income. 
+```{r}
+climate_change_model_3 <- glm(climate_change_binary ~ education + income, family = "binomial", clean_survey)
+summary(climate_change_model_3)$coefficients
+```
+
+```{r}
+# Probability that an individual who has an income of $68,703 with a graduate degree will believe in climate change
+exp(1.910904e-01 + 4.119960e-06*68703 - 4.182496e-01)/(1+(exp(1.910904e-01 + 4.119960e-06*68703 -4.182496e-01)))
+```
+```{r}
+# Probability that an individual who has an income of $68,703 with a college degree will believe in climate change
+exp(1.910904e-01 + 4.119960e-06*68703)/(1+(exp(1.910904e-01 + 4.119960e-06*68703))) 
+```
+```{r}
+# Probability that an individual who has an income of $68,703 with a high school diploma will believe in climate change
+exp(1.910904e-01 + 4.119960e-06*50000 -4.278546e-01)/(1+(exp(1.910904e-01 + 4.119960e-06*50000 -4.278546e-01)))
+```
+When controlling for income, an individual who makes $68,703 annually...
+
+  - with a graduate degree: 51% chance in believing in climate change
+  - with a college degree: 62% chance in believing in climate change
+  - with a high school diploma: 49% chance in believing in climate change. 
+  
+With the probability calculations above and the large p-value observed from the summary table, we can observe that there is no significant trend found here. The probability that individuals with a fixed income but different education levels appear to have a similar chance of believing in climate change (using a college degree as the standard for comparison). 
+
+
+### Conclusion 
+
+The purpose of this analysis was to understand the relationship between belief in climate change, political views, and socioeconomic status. With the analysis, we can conclude: 
+
+  1. When controlling for political party, individuals who approve of Trump have a lower climate change belief. Democrats who disapprove of Trump are 57% more likely to believe in climate change than Republicans who approve of Trump.  
+  2. Individuals who believe in climate change had higher incomes, between roughly $3619 to $33610 more (95% confident), compared to those who do not. This finding is statistically and practically significant.
+  3. Education level did not show a significant trend with climate change belief (when using a college degree as standard for comparison and controlling income).  
+
+Thus, with all the information we have observed in the analysis above, political views and socioeconomic status seem to have a relationship to whether or not an individual will believe in climate change. It is important to note the limitations of this study: we do not have enough information to conclude whether or not education is a strong predictor of climate change belief, nor the impact. 
+
+If I were to continue this study, I would look more into the education variable in relationship to climate change belief. Also I would examine the research question with interaction terms among the predictors. 
+
+
+
+\
+\
+
+
+## Part 3: Collaboration
+
+Collaboration was vital to the success of this project. Our group made a private Slack group chat and used that as the main source of communication. We would post questions/coding errors in this chat and attempt to help each other. Most participated in group discussion; however, some conversations lacked engagement. I often found myself asking everyone about their current progress on the mini project. For my future collaboration practices, I strive to be always engaged in group discussions and assist my group members in any way I can. 
+
+  - Sarah Choi (myself): created Slack group chat; consistently engaged in collaboration
+  - Zara Ammar: always answered and asked questions; consistently engaged in collaboration 
+  - Eyerusalem Abebaw: always answered and asked questions; consistently engaged in collaboration
+  - Matthew Sullivan: this person sometimes engaged
+
+
+
+
