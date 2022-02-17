@@ -1,4 +1,4 @@
-# Climate Change Belief - Statistical Analysis Project
+# Climate Change Belief - Statistical Analysis Using R
 
 Author: Sarah Choi
 
